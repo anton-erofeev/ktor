@@ -1,74 +1,31 @@
 /*
-* Copyright 2014-2021 JetBrains s.r.o and contributors. Use of this source code is governed by the Apache 2.0 license.
+* Copyright 2014-2025 JetBrains s.r.o and contributors. Use of this source code is governed by the Apache 2.0 license.
 */
 
 package io.ktor.util
 
 import io.ktor.utils.io.core.*
 import kotlinx.io.*
-import kotlin.experimental.*
-
-private const val BASE64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-private const val BASE64_MASK: Byte = 0x3f
-private const val BASE64_MASK_INT: Int = 0x3f
-private const val BASE64_PAD = '='
-
-private val BASE64_INVERSE_ALPHABET = IntArray(256) {
-    BASE64_ALPHABET.indexOf(it.toChar())
-}
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 /**
  * Encode [String] in base64 format and UTF-8 character encoding.
  *
  * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.encodeBase64)
  */
-public fun String.encodeBase64(): String = buildPacket {
-    writeText(this@encodeBase64)
-}.encodeBase64()
+@OptIn(ExperimentalEncodingApi::class)
+public fun String.encodeBase64(): String =
+    Base64.Default.encode(this.toByteArray())
 
 /**
  * Encode [ByteArray] in base64 format
  *
  * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.encodeBase64)
  */
-public fun ByteArray.encodeBase64(): String {
-    val array = this@encodeBase64
-    var position = 0
-    var writeOffset = 0
-    val charArray = CharArray(size * 8 / 6 + 3)
-
-    while (position + 3 <= array.size) {
-        val first = array[position].toInt()
-        val second = array[position + 1].toInt()
-        val third = array[position + 2].toInt()
-        position += 3
-
-        val chunk = ((first and 0xFF) shl 16) or ((second and 0xFF) shl 8) or (third and 0xFF)
-        for (index in 3 downTo 0) {
-            val char = (chunk shr (6 * index)) and BASE64_MASK_INT
-            charArray[writeOffset++] = (char.toBase64())
-        }
-    }
-
-    val remaining = array.size - position
-    if (remaining == 0) return charArray.concatToString(0, writeOffset)
-
-    val chunk = if (remaining == 1) {
-        ((array[position].toInt() and 0xFF) shl 16) or ((0 and 0xFF) shl 8) or (0 and 0xFF)
-    } else {
-        ((array[position].toInt() and 0xFF) shl 16) or ((array[position + 1].toInt() and 0xFF) shl 8) or (0 and 0xFF)
-    }
-
-    val padSize = (3 - remaining) * 8 / 6
-    for (index in 3 downTo padSize) {
-        val char = (chunk shr (6 * index)) and BASE64_MASK_INT
-        charArray[writeOffset++] = char.toBase64()
-    }
-
-    repeat(padSize) { charArray[writeOffset++] = BASE64_PAD }
-
-    return charArray.concatToString(0, writeOffset)
-}
+@OptIn(ExperimentalEncodingApi::class)
+public fun ByteArray.encodeBase64(): String =
+    Base64.Default.encode(this)
 
 /**
  * Encode [ByteReadPacket] in base64 format
@@ -92,34 +49,16 @@ public fun String.decodeBase64String(): String {
  *
  * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.decodeBase64Bytes)
  */
-public fun String.decodeBase64Bytes(): ByteArray = buildPacket {
-    writeText(dropLastWhile { it == BASE64_PAD })
-}.decodeBase64Bytes().readByteArray()
+@OptIn(ExperimentalEncodingApi::class)
+public fun String.decodeBase64Bytes(): ByteArray =
+    Base64.Default.decode(this)
 
 /**
  * Decode [ByteReadPacket] from base64 format
  *
  * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.decodeBase64Bytes)
  */
+@OptIn(ExperimentalEncodingApi::class)
 public fun Source.decodeBase64Bytes(): Input = buildPacket {
-    val data = ByteArray(4)
-
-    while (!exhausted()) {
-        val read = readAvailable(data)
-
-        val chunk = data.foldIndexed(0) { index, result, current ->
-            result or (current.fromBase64().toInt() shl ((3 - index) * 6))
-        }
-
-        for (index in data.size - 2 downTo (data.size - read)) {
-            val origin = (chunk shr (8 * index)) and 0xff
-            writeByte(origin.toByte())
-        }
-    }
+    writeFully(Base64.Default.decode(this@decodeBase64Bytes.readByteArray()))
 }
-
-@Suppress("NOTHING_TO_INLINE")
-internal inline fun Int.toBase64(): Char = BASE64_ALPHABET[this]
-
-@Suppress("NOTHING_TO_INLINE")
-internal inline fun Byte.fromBase64(): Byte = BASE64_INVERSE_ALPHABET[toInt() and 0xff].toByte() and BASE64_MASK

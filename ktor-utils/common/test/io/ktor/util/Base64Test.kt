@@ -1,5 +1,5 @@
 /*
-* Copyright 2014-2021 JetBrains s.r.o and contributors. Use of this source code is governed by the Apache 2.0 license.
+* Copyright 2014-2025 JetBrains s.r.o and contributors. Use of this source code is governed by the Apache 2.0 license.
 */
 
 package io.ktor.util
@@ -49,6 +49,17 @@ class Base64Test {
         cases.forEach { (text, encodedText) ->
             assertEquals(encodedText, text.encodeBase64())
             assertEquals(text, encodedText.decodeBase64String())
+        }
+    }
+
+    @Test
+    fun invalidSymbolTest() {
+        assertFailsWith<IllegalArgumentException> {
+            "t2phwKtg-gGTc_S-ytTTFw==".decodeBase64Bytes()
+        }
+
+        assertFailsWith<IllegalArgumentException> {
+            "t2phwKtg-gGTc_S-ytTTFw==".decodeBase64String()
         }
     }
 }
